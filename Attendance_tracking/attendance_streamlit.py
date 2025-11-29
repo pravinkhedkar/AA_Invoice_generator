@@ -8,7 +8,7 @@ from io import StringIO
 from datetime import datetime, date, timedelta
 
 st.set_page_config(page_title="Adhyay Academy — Attendance", layout="centered")
-st.title("Adhyay Academy — Daily Attendance Tracker (Repo-backed)")
+st.title("Adhyay Academy — Daily Attendance Tracker")
 
 # --- Config / options ---
 CLASS_OPTIONS = ["8th CBSE", "9th CBSE", "10th CBSE"]
@@ -26,10 +26,10 @@ HEADERS = {"Accept": "application/vnd.github.v3+json"}
 if GITHUB_TOKEN:
     HEADERS["Authorization"] = f"token {GITHUB_TOKEN}"
 
-st.markdown(
-    "This app saves monthly attendance CSVs directly into the configured GitHub repository.\n\n"
-    "Make sure `GITHUB_TOKEN`, `GITHUB_REPO` and optionally `DATA_DIR` are set in Streamlit Secrets."
-)
+# st.markdown(
+#     "This app saves monthly attendance CSVs directly into the configured GitHub repository.\n\n"
+#     "Make sure `GITHUB_TOKEN`, `GITHUB_REPO` and optionally `DATA_DIR` are set in Streamlit Secrets."
+# )
 
 def compute_end_time(start_str: str, hours: float) -> str:
     try:
@@ -95,7 +95,7 @@ with st.form("attendance_form", clear_on_submit=True):
     start_time = st.selectbox("Start time (HH:MM)", START_TIMES, index=18)
     hours = st.number_input("Duration (hours, 0.5 steps)", min_value=0.5, max_value=12.0, step=0.5, value=1.0)
     end_time_display = compute_end_time(start_time, hours)
-    st.markdown(f"**End time:** {end_time_display if end_time_display else 'Invalid'}")
+    # st.markdown(f"**End time:** {end_time_display if end_time_display else 'Invalid'}")
     end_time_24 = end_time_display.split()[0] if end_time_display else ""
 
     cls = st.selectbox("Class", CLASS_OPTIONS)
