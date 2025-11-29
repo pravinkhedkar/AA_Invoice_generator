@@ -1,35 +1,41 @@
 import streamlit as st
 import os
 import csv
+import json
+import base64
+import requests
+from io import StringIO
 from datetime import datetime, date, timedelta
 
 st.set_page_config(page_title="Adhyay Academy — Attendance", layout="centered")
-st.title("Adhyay Academy — Daily Attendance Tracker")
+st.title("Adhyay Academy — Daily Attendance Tracker (Repo-backed)")
 
-# Where monthly attendance files are stored (directory)
-DATA_DIR = r"C:\Users\DELL\Projects\python\Attendance_tracking"
-os.makedirs(DATA_DIR, exist_ok=True)
-
-st.markdown("Add today's attendance record. Records are saved to a CSV per month (no upload/download here).")
-
-# fixed dropdown options
+# --- Config / options ---
 CLASS_OPTIONS = ["8th CBSE", "9th CBSE", "10th CBSE"]
 SUBJECT_OPTIONS = ["Mathematics", "SST", "Science", "English", "Others"]
 FACULTY_OPTIONS = ["Pravin K", "Shubham K", "Sujata G", "Shubham S"]
-
-# generate start time options (every 30 minutes between 06:00 and 22:30)
 START_TIMES = [f"{h:02d}:{m:02d}" for h in range(6, 23) for m in (0, 30)]
 
+# GitHub repo settings from Streamlit secrets (recommended) or env
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN") if "GITHUB_TOKEN" in st.secrets else os.getenv("GITHUB_TOKEN")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO") if "GITHUB_REPO" in st.secrets else os.getenv("GITHUB_REPO")
+GITHUB_BRANCH = st.secrets.get("GITHUB_BRANCH", "main") if "GITHUB_BRANCH" in st.secrets else os.getenv("GITHUB_BRANCH", "main")
+DATA_DIR = st.secrets.get("DATA_DIR", "Attendance_tracking") if "DATA_DIR" in st.secrets else os.getenv("DATA_DIR", "Attendance_tracking")
+
+HEADERS = {"Accept": "application/vnd.github.v3+json"}
+if GITHUB_TOKEN:
+    HEADERS["Authorization"] = f"token {GITHUB_TOKEN}"
+
+st.markdown(
+    "This app saves monthly attendance CSVs directly into the configured GitHub repository.\n\n"
+    "Make sure `GITHUB_TOKEN`, `GITHUB_REPO` and optionally `DATA_DIR` are set in Streamlit Secrets."
+)
+
 def compute_end_time(start_str: str, hours: float) -> str:
-    """
-    Compute end time given start_str "HH:MM" and duration in hours (e.g. 1.5).
-    Returns "HH:MM (h:MM am/pm)" and adds " (+1 day)" if crossing midnight.
-    """
     try:
         start_dt = datetime.strptime(start_str, "%H:%M")
         total_minutes = int(round(hours * 60))
         end_dt = start_dt + timedelta(minutes=total_minutes)
-
         end_24 = end_dt.strftime("%H:%M")
         end_ampm = end_dt.strftime("%I:%M %p").lstrip("0").replace(" 0", " ")
         note = " (+1 day)" if end_dt.day != start_dt.day else ""
@@ -37,48 +43,61 @@ def compute_end_time(start_str: str, hours: float) -> str:
     except Exception:
         return ""
 
-def month_file_for_date(d: date) -> str:
-    """Return monthly CSV path for given date: attendance_YYYY_MM.csv"""
+def github_file_path_for_date(d: date) -> str:
     fname = f"attendance_{d.year}_{d.month:02d}.csv"
-    return os.path.join(DATA_DIR, fname)
+    return f"{DATA_DIR}/{fname}"
 
-def record_exists(path, day, date_str, time_slot, cls, subj, faculty):
-    """Check CSV for an exact matching record (case-insensitive trim)."""
-    if not os.path.exists(path):
-        return False
-    try:
-        with open(path, newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            for r in reader:
-                # normalize fields
-                def norm(x): 
-                    return (str(x).strip().lower() if x is not None else "")
-                if (norm(r.get("Day")) == norm(day) and
-                    norm(r.get("Date")) == norm(date_str) and
-                    norm(r.get("Time")) == norm(time_slot) and
-                    norm(r.get("Class")) == norm(cls) and
-                    norm(r.get("Subject")) == norm(subj) and
-                    norm(r.get("Faculty")) == norm(faculty)):
-                    return True
-    except Exception:
-        return False
-    return False
+def get_repo_file(path: str):
+    api = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    params = {"ref": GITHUB_BRANCH}
+    r = requests.get(api, headers=HEADERS, params=params, timeout=30)
+    if r.status_code == 200:
+        j = r.json()
+        content = base64.b64decode(j["content"]).decode("utf-8")
+        return content, j["sha"]
+    if r.status_code == 404:
+        return None, None
+    r.raise_for_status()
 
+def put_repo_file(path: str, content_text: str, sha: str = None, message: str = "Update attendance"):
+    api = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    payload = {
+        "message": message,
+        "content": base64.b64encode(content_text.encode("utf-8")).decode("utf-8"),
+        "branch": GITHUB_BRANCH
+    }
+    if sha:
+        payload["sha"] = sha
+    r = requests.put(api, headers=HEADERS, data=json.dumps(payload), timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+def normalize_row_tuple(row):
+    return tuple(str(x).strip().lower() for x in row)
+
+def csv_text_to_rows(text):
+    sio = StringIO(text)
+    reader = csv.reader(sio)
+    return list(reader)
+
+def rows_to_csv_text(rows):
+    sio = StringIO()
+    writer = csv.writer(sio)
+    writer.writerows(rows)
+    return sio.getvalue()
+
+# --- UI form ---
 with st.form("attendance_form", clear_on_submit=True):
     att_date = st.date_input("Date", value=date.today())
-    # show day automatically
     day_name = att_date.strftime("%A")
     st.write("Day:", day_name)
 
-    # Time: select start time and hours
-    start_time = st.selectbox("Start time", START_TIMES, index=18)  # default ~15:00
-    hours = st.number_input("Duration (hours, use 0.5 for 30 mins)", min_value=0.5, max_value=12.0, step=0.5, value=1.0)
+    start_time = st.selectbox("Start time (HH:MM)", START_TIMES, index=18)
+    hours = st.number_input("Duration (hours, 0.5 steps)", min_value=0.5, max_value=12.0, step=0.5, value=1.0)
     end_time_display = compute_end_time(start_time, hours)
-    st.markdown(f"**End time:** {end_time_display if end_time_display else 'Invalid start/time'}")
-    # use the 24-hour part for saving the time slot
+    st.markdown(f"**End time:** {end_time_display if end_time_display else 'Invalid'}")
     end_time_24 = end_time_display.split()[0] if end_time_display else ""
 
-    # Class, Subject, Faculty dropdowns
     cls = st.selectbox("Class", CLASS_OPTIONS)
     subj = st.selectbox("Subject", SUBJECT_OPTIONS)
     faculty = st.selectbox("Faculty name", FACULTY_OPTIONS)
@@ -86,30 +105,77 @@ with st.form("attendance_form", clear_on_submit=True):
     submit = st.form_submit_button("Add Attendance")
 
 if submit:
-    if not (start_time and end_time_24 and cls and subj and faculty):
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        st.error("GitHub token or repo not configured. Set GITHUB_TOKEN and GITHUB_REPO in Streamlit secrets.")
+    elif not (start_time and end_time_24 and cls and subj and faculty):
         st.warning("Please fill all fields.")
     else:
         date_str = att_date.strftime("%d-%m-%Y")
         time_slot = f"{start_time}-{end_time_24}"
-        # determine monthly file path
-        file_path = month_file_for_date(att_date)
+        path = github_file_path_for_date(att_date)
 
-        # duplicate check in monthly file
-        if record_exists(file_path, day_name, date_str, time_slot, cls, subj, faculty):
-            st.warning("Duplicate record detected — this attendance row already exists in the monthly file. Not saved.")
-        else:
-            row = [day_name, date_str, time_slot, cls, subj, faculty]
-            header = ["Day", "Date", "Time", "Class", "Subject", "Faculty"]
-            write_header = not os.path.exists(file_path)
-            try:
-                with open(file_path, "a", newline="", encoding="utf-8-sig") as f:
-                    writer = csv.writer(f)
-                    if write_header:
-                        writer.writerow(header)
-                    writer.writerow(row)
-                st.success(f"Attendance saved for {faculty} on {date_str} ({time_slot}) to {os.path.basename(file_path)}.")
-            except Exception as e:
-                st.error(f"Could not save attendance: {e}")
+        header = ["Day", "Date", "Time", "Class", "Subject", "Faculty"]
+        new_row = [day_name, date_str, time_slot, cls, subj, faculty]
+        new_tuple = normalize_row_tuple(new_row)
+
+        try:
+            existing_text, sha = get_repo_file(path)
+            if existing_text:
+                rows = csv_text_to_rows(existing_text)
+                # If first row looks like header, keep it; else assume no header
+                has_header = False
+                if rows and [c.strip().lower() for c in rows[0]] == [h.lower() for h in header]:
+                    has_header = True
+                    data_rows = rows[1:]
+                else:
+                    data_rows = rows
+
+                # check duplicate
+                normalized_existing = [normalize_row_tuple(r) for r in data_rows if any(cell.strip() for cell in r)]
+                if new_tuple in normalized_existing:
+                    st.warning("Duplicate record detected in repository monthly file; not saved.")
+                else:
+                    data_rows.append(new_row)
+                    out_rows = ([header] if has_header else []) + data_rows
+                    updated_text = rows_to_csv_text(out_rows)
+                    # try put, handle rare race: retry once if conflict
+                    try:
+                        put_repo_file(path, updated_text, sha=sha, message=f"Add attendance {date_str} {time_slot} {faculty}")
+                        st.success("Saved attendance to repository monthly file.")
+                    except requests.HTTPError as e:
+                        # fetch latest and retry once
+                        st.info("Retrying due to concurrent update...")
+                        existing_text2, sha2 = get_repo_file(path)
+                        if existing_text2:
+                            rows2 = csv_text_to_rows(existing_text2)
+                            has_header2 = False
+                            if rows2 and [c.strip().lower() for c in rows2[0]] == [h.lower() for h in header]:
+                                has_header2 = True
+                                data_rows2 = rows2[1:]
+                            else:
+                                data_rows2 = rows2
+                            normalized_existing2 = [normalize_row_tuple(r) for r in data_rows2 if any(cell.strip() for cell in r)]
+                            if new_tuple in normalized_existing2:
+                                st.warning("Duplicate detected after retry; not saved.")
+                            else:
+                                data_rows2.append(new_row)
+                                out_rows2 = ([header] if has_header2 else []) + data_rows2
+                                updated_text2 = rows_to_csv_text(out_rows2)
+                                put_repo_file(path, updated_text2, sha=sha2, message=f"Add attendance {date_str} {time_slot} {faculty}")
+                                st.success("Saved attendance to repository monthly file (after retry).")
+                        else:
+                            # file disappeared between calls; create new
+                            put_repo_file(path, rows_to_csv_text([header, new_row]), message=f"Create attendance file {os.path.basename(path)}")
+                            st.success("Created and saved monthly file in repository.")
+            else:
+                # create new file with header + row
+                content = rows_to_csv_text([header, new_row])
+                put_repo_file(path, content, message=f"Create attendance file {os.path.basename(path)}")
+                st.success("Created and saved monthly file in repository.")
+        except requests.HTTPError as e:
+            st.error(f"GitHub API error: {e.response.status_code} {e.response.reason}")
+        except Exception as e:
+            st.error(f"Error saving attendance: {e}")
 
 st.markdown("---")
 st.caption("Records are saved per-month (attendance_YYYY_MM.csv). Hours / Hourly charge / Total columns are intentionally excluded.")
