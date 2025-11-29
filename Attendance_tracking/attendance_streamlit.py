@@ -6,6 +6,7 @@ import base64
 import requests
 from io import StringIO
 from datetime import datetime, date, timedelta
+import calendar
 
 st.set_page_config(page_title="Adhyay Academy — Attendance", layout="centered")
 st.title("Adhyay Academy — Daily Attendance Tracker")
@@ -178,4 +179,34 @@ if submit:
             st.error(f"Error saving attendance: {e}")
 
 st.markdown("---")
-st.caption("Records are saved per-month (attendance_YYYY_MM.csv). Hours / Hourly charge / Total columns are intentionally excluded.")
+
+# --- Download monthwise CSV ---
+
+st.markdown("## Download monthly CSV")
+col1, col2 = st.columns(2)
+with col1:
+    years = [datetime.now().year - 1, datetime.now().year, datetime.now().year + 1]
+    sel_year = st.selectbox("Year", years, index=1)
+with col2:
+    sel_month = st.selectbox("Month", list(range(1, 13)), index=datetime.now().month - 1,
+                             format_func=lambda m: calendar.month_name[m])
+
+if st.button("Download CSV for selected month"):
+    target_date = date(sel_year, sel_month, 1)
+    path = github_file_path_for_date(target_date)
+    try:
+        content, sha = get_repo_file(path)
+        if content:
+            st.success(f"Found file: {os.path.basename(path)}")
+            st.download_button("Download CSV", data=content.encode("utf-8"), file_name=os.path.basename(path), mime="text/csv")
+        else:
+            st.warning("No CSV found for the selected month.")
+    except requests.HTTPError as e:
+        body = ""
+        try:
+            body = e.response.text
+        except Exception:
+            pass
+        st.error(f"GitHub API error: {e.response.status_code} {e.response.reason}\n{body}")
+    except Exception as e:
+        st.error(f"Error fetching file: {e}")
