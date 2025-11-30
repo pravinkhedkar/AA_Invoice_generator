@@ -210,3 +210,33 @@ if st.button("Download CSV for selected month"):
         st.error(f"GitHub API error: {e.response.status_code} {e.response.reason}\n{body}")
     except Exception as e:
         st.error(f"Error fetching file: {e}")
+
+# --- Show current month's records ---
+
+if st.button("Show current month's records"):
+    target_date = date.today()
+    path = github_file_path_for_date(target_date)
+    try:
+        content, sha = get_repo_file(path)
+        if content:
+            rows = csv_text_to_rows(content)
+            if rows:
+                header = rows[0]
+                data_rows = rows[1:] if len(rows) > 1 else []
+                st.info(f"{calendar.month_name[target_date.month]} {target_date.year} — {len(data_rows)} record(s)")
+                # display as list of dicts for a nice table
+                table_data = [dict(zip(header, r)) for r in data_rows]
+                st.table(table_data)
+            else:
+                st.warning("CSV is empty.")
+        else:
+            st.warning("No CSV found for the current month.")
+    except requests.HTTPError as e:
+        body = ""
+        try:
+            body = e.response.text
+        except Exception:
+            pass
+        st.error(f"GitHub API error: {e.response.status_code} {e.response.reason}\n{body}")
+    except Exception as e:
+        st.error(f"Error fetching current month's records: {e}")
