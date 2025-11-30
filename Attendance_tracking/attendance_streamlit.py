@@ -110,16 +110,17 @@ CLASS_WITH_EMPTY = [""] + CLASS_OPTIONS
 SUBJ_WITH_EMPTY = [""] + SUBJECT_OPTIONS
 FAC_WITH_EMPTY = [""] + FACULTY_OPTIONS
 
+# --- Date input moved OUTSIDE the form to avoid form callback error ---
+st.write("Date (dd-mm-yyyy)")
+cold1, cold2 = st.columns([3, 1])
+with cold1:
+    att_date_text = st.text_input("", key="att_date_text", placeholder="dd-mm-yyyy")
+with cold2:
+    if st.button("Today"):
+        set_today()
+
 # --- UI form ---
 with st.form("attendance_form", clear_on_submit=True):
-    # Date as text so it can start blank; provide a button to fill today's date
-    st.write("Date (dd-mm-yyyy)")
-    cold1, cold2 = st.columns([3,1])
-    with cold1:
-        att_date_text = st.text_input("", key="att_date_text", placeholder="dd-mm-yyyy")
-    with cold2:
-        st.button("Today", on_click=set_today)
-
     # show day automatically if valid date entered
     parsed_day = ""
     parsed_date = None
