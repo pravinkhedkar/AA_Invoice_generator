@@ -87,21 +87,70 @@ def rows_to_csv_text(rows):
     writer.writerows(rows)
     return sio.getvalue()
 
+# Ensure session state keys exist so form starts blank
+for k, v in {
+    "att_date_text": "",
+    "start_time": "",
+    "hours": "",
+    "cls": "",
+    "subj": "",
+    "faculty": ""
+}.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+# Helper to set today's date into text field
+def set_today():
+    st.session_state["att_date_text"] = date.today().strftime("%d-%m-%Y")
+
+# Build options with an empty choice so nothing is pre-selected
+START_TIMES_WITH_EMPTY = [""] + START_TIMES
+HOURS_OPTIONS = [""] + [str(x/2) for x in range(1, 25)]  # 0.5 .. 12.0
+CLASS_WITH_EMPTY = [""] + CLASS_OPTIONS
+SUBJ_WITH_EMPTY = [""] + SUBJECT_OPTIONS
+FAC_WITH_EMPTY = [""] + FACULTY_OPTIONS
+
 # --- UI form ---
 with st.form("attendance_form", clear_on_submit=True):
-    att_date = st.date_input("Date", value=date.today())
-    day_name = att_date.strftime("%A")
-    st.write("Day:", day_name)
+    # Date as text so it can start blank; provide a button to fill today's date
+    st.write("Date (dd-mm-yyyy)")
+    cold1, cold2 = st.columns([3,1])
+    with cold1:
+        att_date_text = st.text_input("", key="att_date_text", placeholder="dd-mm-yyyy")
+    with cold2:
+        st.button("Today", on_click=set_today)
 
-    start_time = st.selectbox("Start time (HH:MM)", START_TIMES, index=18)
-    hours = st.number_input("Duration (hours, 0.5 steps)", min_value=0.5, max_value=12.0, step=0.5, value=1.0)
-    end_time_display = compute_end_time(start_time, hours)
-    # st.markdown(f"**End time:** {end_time_display if end_time_display else 'Invalid'}")
-    end_time_24 = end_time_display.split()[0] if end_time_display else ""
+    # show day automatically if valid date entered
+    parsed_day = ""
+    parsed_date = None
+    if st.session_state["att_date_text"].strip():
+        try:
+            parsed_date = datetime.strptime(st.session_state["att_date_text"].strip(), "%d-%m-%Y").date()
+            parsed_day = parsed_date.strftime("%A")
+            st.write("Day:", parsed_day)
+        except Exception:
+            st.write("Day: (invalid date)")
 
-    cls = st.selectbox("Class", CLASS_OPTIONS)
-    subj = st.selectbox("Subject", SUBJECT_OPTIONS)
-    faculty = st.selectbox("Faculty name", FACULTY_OPTIONS)
+    # Time: select start time and hours — both start blank
+    start_time = st.selectbox("Start time (HH:MM)", START_TIMES_WITH_EMPTY, index=0, key="start_time")
+    hours = st.selectbox("Duration (hours)", HOURS_OPTIONS, index=0, key="hours")
+
+    # compute end time only when valid inputs present
+    end_time_display = ""
+    end_time_24 = ""
+    if start_time and hours:
+        try:
+            hours_val = float(hours)
+            end_time_display = compute_end_time(start_time, hours_val)
+            end_time_24 = end_time_display.split()[0] if end_time_display else ""
+            st.markdown(f"**End time:** {end_time_display if end_time_display else 'Invalid'}")
+        except Exception:
+            st.markdown("**End time:** Invalid duration")
+
+    # Class, Subject, Faculty dropdowns with empty default
+    cls = st.selectbox("Class", CLASS_WITH_EMPTY, index=0, key="cls")
+    subj = st.selectbox("Subject", SUBJ_WITH_EMPTY, index=0, key="subj")
+    faculty = st.selectbox("Faculty name", FAC_WITH_EMPTY, index=0, key="faculty")
 
     submit = st.form_submit_button("Add Attendance")
 
