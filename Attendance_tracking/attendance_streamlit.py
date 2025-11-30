@@ -116,8 +116,7 @@ cold1, cold2 = st.columns([3, 1])
 with cold1:
     att_date_text = st.text_input("", key="att_date_text", placeholder="dd-mm-yyyy")
 with cold2:
-    if st.button("Today"):
-        set_today()
+    st.button("Today", on_click=set_today)
 
 # --- UI form ---
 with st.form("attendance_form", clear_on_submit=True):
