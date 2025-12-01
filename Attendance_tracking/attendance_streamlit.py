@@ -157,7 +157,7 @@ if submit:
                 if new_tuple in normalized_existing:
                     st.warning("Duplicate record detected in repository monthly file; not saved.")
                 else:
-                    # --- new: check time-overlap conflicts for same Date/Class/Subject with other faculty ---
+                    # --- new: check time-overlap conflicts for same Date/Class (ignore subject) ---
                     conflict = False
                     try:
                         new_interval = parse_time_slot(time_slot)
@@ -169,11 +169,12 @@ if submit:
                             existing_class = r[3].strip().lower()
                             existing_subj = r[4].strip().lower()
                             existing_faculty = r[5].strip()
-                            if existing_date == date_str and existing_class == cls.strip().lower() and existing_subj == subj.strip().lower():
-                                existing_interval = parse_time_slot(existing_time)
+
+                            # consider only same date and same class (ignore subject/faculty)
+                            if existing_date == date_str and existing_class == cls.strip().lower():
+                                existing_interval = parse_time_slot(existing_time)   # <-- parse before use
                                 if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
-                                    # Block overlap regardless of whether it's the same faculty or different
-                                    st.error(f"Time overlap conflict: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' subject '{subj}' on {date_str}. Not saved.")
+                                    st.error(f"Time overlap conflict: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' on {date_str}. Not saved.")
                                     conflict = True
                                     break
                     except Exception:
@@ -216,11 +217,12 @@ if submit:
                                             existing_class = r[3].strip().lower()
                                             existing_subj = r[4].strip().lower()
                                             existing_faculty = r[5].strip()
-                                            if existing_date == date_str and existing_class == cls.strip().lower() and existing_subj == subj.strip().lower():
-                                                existing_interval = parse_time_slot(existing_time)
+
+                                            # consider only same date and same class (ignore subject/faculty)
+                                            if existing_date == date_str and existing_class == cls.strip().lower():
+                                                existing_interval = parse_time_slot(existing_time)  # <-- parse before use
                                                 if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
-                                                    # Block overlap on retry as well, even for same faculty
-                                                    st.error(f"Time overlap conflict after retry: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}). Not saved.")
+                                                    st.error(f"Time overlap conflict after retry: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' on {date_str}. Not saved.")
                                                     conflict2 = True
                                                     break
                                     except Exception:
