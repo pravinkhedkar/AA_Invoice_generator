@@ -76,6 +76,27 @@ def put_repo_file(path: str, content_text: str, sha: str = None, message: str = 
 def normalize_row_tuple(row):
     return tuple(str(x).strip().lower() for x in row)
 
+# --- new: time slot parsing and overlap helpers ---
+def parse_time_slot(slot: str):
+    """Return (start_minutes, end_minutes) for a slot like '15:00-18:00'. 
+    If end <= start, end is considered next day (adds 24*60)."""
+    try:
+        parts = slot.split("-", 1)
+        s = parts[0].strip()
+        e = parts[1].strip()
+        t1 = datetime.strptime(s, "%H:%M")
+        t2 = datetime.strptime(e, "%H:%M")
+        m1 = t1.hour * 60 + t1.minute
+        m2 = t2.hour * 60 + t2.minute
+        if m2 <= m1:
+            m2 += 24 * 60
+        return m1, m2
+    except Exception:
+        return None
+
+def intervals_overlap(a_start, a_end, b_start, b_end):
+    return not (a_end <= b_start or b_end <= a_start)
+
 def csv_text_to_rows(text):
     sio = StringIO(text)
     reader = csv.reader(sio)
@@ -136,38 +157,85 @@ if submit:
                 if new_tuple in normalized_existing:
                     st.warning("Duplicate record detected in repository monthly file; not saved.")
                 else:
-                    data_rows.append(new_row)
-                    out_rows = ([header] if has_header else []) + data_rows
-                    updated_text = rows_to_csv_text(out_rows)
-                    # try put, handle rare race: retry once if conflict
+                    # --- new: check time-overlap conflicts for same Date/Class/Subject with other faculty ---
+                    conflict = False
                     try:
-                        put_repo_file(path, updated_text, sha=sha, message=f"Add attendance {date_str} {time_slot} {faculty}")
-                        st.success("Saved attendance to repository monthly file.")
-                    except requests.HTTPError as e:
-                        # fetch latest and retry once
-                        st.info("Retrying due to concurrent update...")
-                        existing_text2, sha2 = get_repo_file(path)
-                        if existing_text2:
-                            rows2 = csv_text_to_rows(existing_text2)
-                            has_header2 = False
-                            if rows2 and [c.strip().lower() for c in rows2[0]] == [h.lower() for h in header]:
-                                has_header2 = True
-                                data_rows2 = rows2[1:]
+                        new_interval = parse_time_slot(time_slot)
+                        for r in data_rows:
+                            if len(r) < 6:
+                                continue
+                            existing_date = r[1].strip()
+                            existing_time = r[2].strip()
+                            existing_class = r[3].strip().lower()
+                            existing_subj = r[4].strip().lower()
+                            existing_faculty = r[5].strip()
+                            if existing_date == date_str and existing_class == cls.strip().lower() and existing_subj == subj.strip().lower():
+                                existing_interval = parse_time_slot(existing_time)
+                                if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
+                                    if existing_faculty.strip().lower() != faculty.strip().lower():
+                                        st.error(f"Time overlap conflict: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' subject '{subj}' on {date_str}. Not saved.")
+                                        conflict = True
+                                        break
+                    except Exception:
+                        # if parsing fails, don't block save on overlap check; proceed to save or let duplicate detection handle it
+                        conflict = False
+
+                    if not conflict:
+                        data_rows.append(new_row)
+                        out_rows = ([header] if has_header else []) + data_rows
+                        updated_text = rows_to_csv_text(out_rows)
+                        # try put, handle rare race: retry once if conflict
+                        try:
+                            put_repo_file(path, updated_text, sha=sha, message=f"Add attendance {date_str} {time_slot} {faculty}")
+                            st.success("Saved attendance to repository monthly file.")
+                        except requests.HTTPError as e:
+                            # fetch latest and retry once
+                            st.info("Retrying due to concurrent update...")
+                            existing_text2, sha2 = get_repo_file(path)
+                            if existing_text2:
+                                rows2 = csv_text_to_rows(existing_text2)
+                                has_header2 = False
+                                if rows2 and [c.strip().lower() for c in rows2[0]] == [h.lower() for h in header]:
+                                    has_header2 = True
+                                    data_rows2 = rows2[1:]
+                                else:
+                                    data_rows2 = rows2
+                                normalized_existing2 = [normalize_row_tuple(r) for r in data_rows2 if any(cell.strip() for cell in r)]
+                                if new_tuple in normalized_existing2:
+                                    st.warning("Duplicate detected after retry; not saved.")
+                                else:
+                                    # re-run overlap check on latest data
+                                    conflict2 = False
+                                    try:
+                                        new_interval = parse_time_slot(time_slot)
+                                        for r in data_rows2:
+                                            if len(r) < 6:
+                                                continue
+                                            existing_date = r[1].strip()
+                                            existing_time = r[2].strip()
+                                            existing_class = r[3].strip().lower()
+                                            existing_subj = r[4].strip().lower()
+                                            existing_faculty = r[5].strip()
+                                            if existing_date == date_str and existing_class == cls.strip().lower() and existing_subj == subj.strip().lower():
+                                                existing_interval = parse_time_slot(existing_time)
+                                                if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
+                                                    if existing_faculty.strip().lower() != faculty.strip().lower():
+                                                        st.error(f"Time overlap conflict after retry: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}). Not saved.")
+                                                        conflict2 = True
+                                                        break
+                                    except Exception:
+                                        conflict2 = False
+
+                                    if not conflict2:
+                                        data_rows2.append(new_row)
+                                        out_rows2 = ([header] if has_header2 else []) + data_rows2
+                                        updated_text2 = rows_to_csv_text(out_rows2)
+                                        put_repo_file(path, updated_text2, sha=sha2, message=f"Add attendance {date_str} {time_slot} {faculty}")
+                                        st.success("Saved attendance to repository monthly file (after retry).")
                             else:
-                                data_rows2 = rows2
-                            normalized_existing2 = [normalize_row_tuple(r) for r in data_rows2 if any(cell.strip() for cell in r)]
-                            if new_tuple in normalized_existing2:
-                                st.warning("Duplicate detected after retry; not saved.")
-                            else:
-                                data_rows2.append(new_row)
-                                out_rows2 = ([header] if has_header2 else []) + data_rows2
-                                updated_text2 = rows_to_csv_text(out_rows2)
-                                put_repo_file(path, updated_text2, sha=sha2, message=f"Add attendance {date_str} {time_slot} {faculty}")
-                                st.success("Saved attendance to repository monthly file (after retry).")
-                        else:
-                            # file disappeared between calls; create new
-                            put_repo_file(path, rows_to_csv_text([header, new_row]), message=f"Create attendance file {os.path.basename(path)}")
-                            st.success("Created and saved monthly file in repository.")
+                                # file disappeared between calls; create new
+                                put_repo_file(path, rows_to_csv_text([header, new_row]), message=f"Create attendance file {os.path.basename(path)}")
+                                st.success("Created and saved monthly file in repository.")
             else:
                 # create new file with header + row
                 content = rows_to_csv_text([header, new_row])
