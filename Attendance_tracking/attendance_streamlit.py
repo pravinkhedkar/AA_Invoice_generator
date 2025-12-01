@@ -172,10 +172,10 @@ if submit:
                             if existing_date == date_str and existing_class == cls.strip().lower() and existing_subj == subj.strip().lower():
                                 existing_interval = parse_time_slot(existing_time)
                                 if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
-                                    if existing_faculty.strip().lower() != faculty.strip().lower():
-                                        st.error(f"Time overlap conflict: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' subject '{subj}' on {date_str}. Not saved.")
-                                        conflict = True
-                                        break
+                                    # Block overlap regardless of whether it's the same faculty or different
+                                    st.error(f"Time overlap conflict: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' subject '{subj}' on {date_str}. Not saved.")
+                                    conflict = True
+                                    break
                     except Exception:
                         # if parsing fails, don't block save on overlap check; proceed to save or let duplicate detection handle it
                         conflict = False
@@ -219,10 +219,10 @@ if submit:
                                             if existing_date == date_str and existing_class == cls.strip().lower() and existing_subj == subj.strip().lower():
                                                 existing_interval = parse_time_slot(existing_time)
                                                 if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
-                                                    if existing_faculty.strip().lower() != faculty.strip().lower():
-                                                        st.error(f"Time overlap conflict after retry: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}). Not saved.")
-                                                        conflict2 = True
-                                                        break
+                                                    # Block overlap on retry as well, even for same faculty
+                                                    st.error(f"Time overlap conflict after retry: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}). Not saved.")
+                                                    conflict2 = True
+                                                    break
                                     except Exception:
                                         conflict2 = False
 
