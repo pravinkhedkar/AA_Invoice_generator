@@ -11,15 +11,26 @@ header2 = ['', 'Depth (mm)', 'Peak (mm/hr)', 'Average (mm/hr)',
            'Min (m3/s)', 'Volume (m3)', 'Min (m/s)', 'Max (m/s)']
 
 def process_file(path: Path) -> list:
-    """Process a single file with get_data_list and return CSV rows for that file."""
-    rows = [header1, header2]
+    """Process a single file with get_data_list and return CSV rows for that file.
+    If the returned data begins with a list (metadata), write that as the first CSV row."""
     try:
         data = get_data_list(path)
     except Exception as e:
         print(f"Skipping {path.name}: error calling get_data_list: {e}")
-        return rows
+        return [header1, header2]
+
+    # Start rows: if first element is a metadata list, use it as first row
+    rows = []
+    if data and isinstance(data[0], list):
+        meta = [str(x) for x in data.pop(0)]
+        rows.append(meta)
+
+    # then add the two header rows
+    rows.extend([header1, header2])
 
     for item in data:
+        if not isinstance(item, dict):
+            continue
         name = list(item.keys())[0]
         block = item[name]
 
@@ -77,6 +88,6 @@ if __name__ == "__main__":
             writer = csv.writer(f)
             writer.writerows(rows)
         processed_count += 1
-        print(f"Wrote {len(rows)-2} data rows for {path.name} to {out_fname}")
+        print(f"Wrote {max(0, len(rows)-3)} data rows for {path.name} to {out_fname}")
 
     print(f"Processed {processed_count} files. Output folder: {out_dir}")
