@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime
 import sys
 from transform_data import get_data_list
+from combine_csv import combine_csvs
 
 # Prepare header rows (matching the CSV structure) without Source column
 header1 = ['', 'Rainfall', '', '', 'Depth', '', 'Flow', '', 'Velocity', '']
@@ -107,3 +108,6 @@ if __name__ == "__main__":
         print(f"Wrote {written} data rows for {path.name} to {out_fname}")
 
     print(f"Processed {processed_count} files. Output folder: {out_dir}")
+    combine = True
+    if combine:
+        combine_csvs()
