@@ -64,9 +64,28 @@ def process_file(path: Path) -> list:
         rows.append(row)
     return rows
 
+def write_csv(out_path: Path, rows: list) -> int:
+    """Write rows to out_path CSV and return number of data rows written.
+    Considers two header rows (header1, header2). If a metadata row was prepended
+    it is excluded from the data row count.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", newline='', encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+
+    # compute data rows: subtract header rows (2) and optional metadata row (if first row length differs)
+    meta_rows = 0
+    if rows and isinstance(rows[0], list):
+        # assume metadata if first row length is not equal to header2 length
+        if len(rows[0]) != len(header2):
+            meta_rows = 1
+    data_rows = max(0, len(rows) - 2 - meta_rows)
+    return data_rows
+
 if __name__ == "__main__":
     # folder can be passed as first CLI arg, otherwise use default folder
-    folder_arg = sys.argv[1] if len(sys.argv) > 1 else r"c:\Users\DELL\Projects\python\extracted_pages"
+    folder_arg = "c:\\Users\\DELL\\Projects\\python\\extracted_pages"
     folder = Path(folder_arg)
     if not folder.exists() or not folder.is_dir():
         print(f"Folder not found: {folder}")
@@ -82,12 +101,9 @@ if __name__ == "__main__":
         if not path.is_file():
             continue
         rows = process_file(path)
-        # write one CSV per input file
         out_fname = out_dir / f"{path.stem}_table_{date}.csv"
-        with out_fname.open("w", newline='', encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            writer.writerows(rows)
+        written = write_csv(out_fname, rows)
         processed_count += 1
-        print(f"Wrote {max(0, len(rows)-3)} data rows for {path.name} to {out_fname}")
+        print(f"Wrote {written} data rows for {path.name} to {out_fname}")
 
     print(f"Processed {processed_count} files. Output folder: {out_dir}")
