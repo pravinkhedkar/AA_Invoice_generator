@@ -1,5 +1,7 @@
 import streamlit as st
 from get_gat_number_data import get_intersected_record
+from constants import VILLAGE_CODE_MAPPING_MARATHI, VILLAGE_CODE_MAPPING_ENGLISH
+import pandas as pd
 
 # Page configuration
 st.set_page_config(page_title="Gat Number Finder", layout="centered")
@@ -83,19 +85,23 @@ if st.button("🔍 Search", use_container_width=True):
     else:
         with st.spinner("Searching for intersecting records..."):
             data, result = get_intersected_record(longitude, latitude)
-            
-            if data is not None and not data.empty:
+
+            if data:
                 st.success("✅ Intersecting record found!")
                 
                 # Display results in columns
-                col1, col2 = st.columns(2)
+                col1, col2, col3 = st.columns(3)
                 
                 with col1:
                     st.metric(label="Gat Number", value=data['gat_number'])
                 
-                # with col2:
-                #     st.metric(label="Village/Info", value=data['info'])
-                
+                with col2:
+                    marathi_name = VILLAGE_CODE_MAPPING_MARATHI.get(data['village_code'], "Unknown Village")
+                    st.metric(label="Village", value = marathi_name)
+                with col3:
+                    english_name = VILLAGE_CODE_MAPPING_ENGLISH.get(data['village_code'], "Unknown Village")
+                    st.metric(label="Village (English)", value = english_name)
+
                 # Display additional details
                 st.divider()
                 st.subheader("Details")
@@ -105,13 +111,9 @@ if st.button("🔍 Search", use_container_width=True):
                     st.write(f"**Latitude:** {latitude}")
                     st.write(f"**Longitude:** {longitude}")
                 
-                # with details_col2:
-                #     st.write(f"**Intersection Area:** {result.area}")
-                #     st.write(f"**Geometry Type:** {result.geom_type}")
-                
                 # Display full row data
                 st.subheader("Full Record Data")
-                st.dataframe(data, use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(data, index=[0]), use_container_width=True, hide_index=True)
 
             else:
                 st.warning("⚠️ No intersecting record found for the given coordinates.")

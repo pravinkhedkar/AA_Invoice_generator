@@ -67,26 +67,31 @@ def get_intersected_record(longitude, latitude):
             intersection_result = square_poly.intersection(poly_4326)
             
             # Return as DataFrame with geometry columns already dropped
-            row_df = pd.DataFrame([row]).drop(columns=columns_to_exclude, errors='ignore')
-            return row_df, intersection_result
-    
+            data_dict = {
+                'gat_number': row['gat_number'],
+                'info': row['info'],
+                'village_code': row['village_code']
+            }
+            # row_df = pd.DataFrame([row]).drop(columns=columns_to_exclude, errors='ignore', ignore_index=True)
+            return data_dict, intersection_result
+
     return None, None
 
 # Example Usage
 # if __name__ == '__main__':
 #     #425 lon lat
-#     # lon, lat = 73.66145314738887, 18.540054590592224
-#     lat, lon =  18.545217198626794, 73.6565971064236
+#     lon, lat = 73.66145314738887, 18.540054590592224
+#     # lat, lon =  18.545217198626794, 73.6565971064236
 
 #     #363 lon lat
 #     # lon, lat =  73.65982448286833, 18.546279760082392
 #     data, result = get_intersected_record(lon, lat)
-#     # if data is not None and not data.empty:
-#     #     # print(data['info'], data['gat_number'], data['geometry_text_transformed'])
-#     #     # print(result)
-#     #     gat_number = data['gat_number']
-#     #     info = data['info']
-#     #     # village = data['village']
+#     if data is not None:
+#         # print(data['info'], data['gat_number'], data['geometry_text_transformed'])
+#         # print(result)
+#         gat_number = data['gat_number']
+#         info = data['info']
+#         village_code = data['village_code']
 
-#     # else:
-#     #     print("No intersecting record found.")
+    # else:
+    #     print("No intersecting record found.")
