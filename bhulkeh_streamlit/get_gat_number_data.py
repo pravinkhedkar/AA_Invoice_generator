@@ -3,6 +3,8 @@ import pandas as pd
 import geopy.distance
 from shapely.geometry import Polygon
 import os
+from convex_hull_map import CONVEX_HULL_MAP
+from constants import VILLAGE_CODE_MAPPING_ENGLISH
 
 def create_square_polygon(center_lat, center_lon, side_length_m):
     """
@@ -40,40 +42,40 @@ def create_square_polygon(center_lat, center_lon, side_length_m):
     
     return corners, polygon
 
+# Example Usage
+
+def check_convex_hull_intersection(square_poly):
+    village_code_intersected = [key for key, value in CONVEX_HULL_MAP.items() if wkt.loads(value).intersects(square_poly)]
+    return village_code_intersected
+
 def get_intersected_record(longitude, latitude):
     side_m = 1  # 1 meter side length
     corners, square_poly = create_square_polygon(latitude, longitude, side_m)
 
     # Get current folder path and construct CSV file path
     current_folder = os.path.dirname(os.path.abspath(__file__))
-    csv_file = os.path.join(current_folder, "transformed_gis_data.csv")
-    
-    # Check if file exists
-    if not os.path.exists(csv_file):
-        print(f"Error: CSV file not found at {csv_file}")
-        return None, None
-    
-    # Read CSV
-    df = pd.read_csv(csv_file)
-    
-    # List of geometry columns to exclude
-    columns_to_exclude = ['geometry_text', 'geometry_text_transformed', 'geometry_geojson']
-    
-    for index, row in df.iterrows():
-        poly_4326 = wkt.loads(row['geometry_text_transformed'])
+    village_code_list = check_convex_hull_intersection(square_poly)
+    if village_code_list:
+        for village_code in village_code_list:
+            village_name = VILLAGE_CODE_MAPPING_ENGLISH.get(village_code, "Unknown Village")
+            csv_file = os.path.join(current_folder, 'transformed_all_records',f"transformed_gis_data_{village_code}_{village_name}.csv")
+            if not os.path.exists(csv_file):
+                print(f"Error: CSV file not found at {csv_file}")
+                return None, None
+            df = pd.read_csv(csv_file)
+            for index, row in df.iterrows():
+                poly_4326 = wkt.loads(row['geometry_text_transformed'])
 
-        # Check for intersection
-        if square_poly.intersects(poly_4326):
-            intersection_result = square_poly.intersection(poly_4326)
-            
-            # Return as DataFrame with geometry columns already dropped
-            data_dict = {
-                'gat_number': row['gat_number'],
-                'info': row['info'],
-                'village_code': row['village_code']
-            }
-            # row_df = pd.DataFrame([row]).drop(columns=columns_to_exclude, errors='ignore', ignore_index=True)
-            return data_dict, intersection_result
+                # Check for intersection
+                if square_poly.intersects(poly_4326):
+                    intersection_result = square_poly.intersection(poly_4326)
+                    # Return as DataFrame with geometry columns already dropped
+                    data_dict = {
+                        'gat_number': row['gat_number'],
+                        'info': row['info'],
+                        'village_code': row['village_code']
+                    }
+                    return data_dict, intersection_result
 
     return None, None
 
@@ -93,5 +95,5 @@ def get_intersected_record(longitude, latitude):
 #         info = data['info']
 #         village_code = data['village_code']
 
-    # else:
-    #     print("No intersecting record found.")
+#     else:
+#         print("No intersecting record found.")
