@@ -192,11 +192,11 @@ except FileNotFoundError:
     st.warning(f"⚠️ Logo not found at {logo_path}")
 
 # Main Title
-st.markdown("<div class='main-title'>🎓 ADHYAY ACADEMY</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title' style='font-size: clamp(24px, 6vw, 38px); white-space: nowrap;'>🎓 Adhyay Academy (अध्याय अकॅडमी, बावधन)</div>", unsafe_allow_html=True)
 
 # Subheading
 st.markdown(
-    "<h2 style='text-align: center; margin: 0px 0; font-size: clamp(16px, 5vw, 20px);'>📚 Admissions Open for CBSE Classes 8th to 10th</h2>",
+    "<h2 style='text-align: center; margin: 0px 0; font-size: clamp(14px, 4vw, 18px);'>Best CBSE Coaching in Bavdhan</h2>",
     unsafe_allow_html=True
 )
 
