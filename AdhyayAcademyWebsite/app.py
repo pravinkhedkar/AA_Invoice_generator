@@ -103,6 +103,7 @@ st.markdown("""
             margin-bottom: 8px;
             text-align: center;
             padding-bottom: 6px;
+            color: #ffc107;
             border-bottom: 3px solid var(--accent-color);
         }
         
