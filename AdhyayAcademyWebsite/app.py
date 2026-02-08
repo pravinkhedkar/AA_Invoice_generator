@@ -11,6 +11,19 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Google Analytics
+st.markdown("""
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-LZDNYMTKYS"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-LZDNYMTKYS');
+    </script>
+""", unsafe_allow_html=True)
+
 # Custom CSS for deep blue and golden yellow theme (Light & Dark mode compatible)
 st.markdown("""
     <style>
@@ -301,7 +314,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("<div class='divider'></div>", unsafe_allow_html=True)
-
 
 # Footer
 st.markdown("""
