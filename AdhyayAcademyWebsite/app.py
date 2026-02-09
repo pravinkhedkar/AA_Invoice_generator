@@ -304,7 +304,7 @@ st.markdown("<div class='section-title'>📞 Contact Us</div>", unsafe_allow_htm
 st.markdown("""
 <div style='display: flex; justify-content: space-around; flex-wrap: wrap; gap: 8px;'>
     <div class='contact-item' style='flex: 1; min-width: 140px;'>
-        <span>👨‍🏫 <b>Shubham Sir</b><br>📱 9561600698</span>
+        <span>👨‍🏫 <b>Shubham Sir</b><br>📱 9021296967</span>
     </div>
     <div class='contact-item' style='flex: 1; min-width: 140px;'>
         <span>👨‍🏫 <b>Pravin Sir</b><br>📱 8796676332</span>
