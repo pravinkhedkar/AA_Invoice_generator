@@ -17,7 +17,7 @@ def read_student_data(excel_file, detailed_report=False):
         df = pd.read_excel(excel_file, sheet_name=sheet_name)
         
         # Forward fill student names (fills NaN with previous valid student name)
-        df['Student'] = df['Student'].fillna(method='ffill')
+        df['Student'] = df['Student'].ffill()
         
         # Drop rows with no student at all
         df = df.dropna(subset=['Student'], how='all')
