@@ -181,7 +181,7 @@ if st.session_state.get("pending_attendance"):
                     if new_tuple in normalized_existing:
                         st.warning("Duplicate record detected in repository monthly file; not saved.")
                     else:
-                        # overlap check same date & same class (ignore subject)
+                        # overlap check same date & same faculty (prevent one teacher from teaching multiple classes at same time)
                         conflict = False
                         try:
                             new_interval = parse_time_slot(time_slot)
@@ -190,12 +190,12 @@ if st.session_state.get("pending_attendance"):
                                     continue
                                 existing_date = r[1].strip()
                                 existing_time = r[2].strip()
-                                existing_class = r[3].strip().lower()
+                                existing_class = r[3].strip()
                                 existing_faculty = r[5].strip()
-                                if existing_date == date_str and existing_class == cls.strip().lower():
+                                if existing_date == date_str and existing_faculty == faculty.strip():
                                     existing_interval = parse_time_slot(existing_time)
                                     if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
-                                        st.error(f"Time overlap conflict: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' on {date_str}. Not saved.")
+                                        st.error(f"Time overlap conflict: {faculty} cannot teach both {existing_class} and {cls} at the same time ({time_slot}) on {date_str}. Not saved.")
                                         conflict = True
                                         break
                         except Exception:
@@ -232,12 +232,12 @@ if st.session_state.get("pending_attendance"):
                                                     continue
                                                 existing_date = r[1].strip()
                                                 existing_time = r[2].strip()
-                                                existing_class = r[3].strip().lower()
+                                                existing_class = r[3].strip()
                                                 existing_faculty = r[5].strip()
-                                                if existing_date == date_str and existing_class == cls.strip().lower():
+                                                if existing_date == date_str and existing_faculty == faculty.strip():
                                                     existing_interval = parse_time_slot(existing_time)
                                                     if new_interval and existing_interval and intervals_overlap(new_interval[0], new_interval[1], existing_interval[0], existing_interval[1]):
-                                                        st.error(f"Time overlap conflict after retry: {faculty} ({time_slot}) overlaps with {existing_faculty} ({existing_time}) for class '{cls}' on {date_str}. Not saved.")
+                                                        st.error(f"Time overlap conflict after retry: {faculty} cannot teach both {existing_class} and {cls} at the same time ({time_slot}) on {date_str}. Not saved.")
                                                         conflict2 = True
                                                         break
                                         except Exception:
